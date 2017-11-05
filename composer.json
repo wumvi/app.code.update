@@ -1,0 +1,25 @@
+{
+  "name": "wumvi/code.update",
+  "description": "Code update",
+  "require": {
+    "wumvi/yandex-disk-api": "1.0.*",
+    "wumvi/docker-api": "1.0.*",
+    "ulrichsg/getopt-php": "^3.0",
+    "symfony/filesystem": "3.3.*"
+  },
+
+  "autoload": {
+    "psr-4": {
+      "CodeUpdate\\": "src"
+    }
+  },
+
+  "require-dev": {
+  },
+  "authors": [
+    {
+      "name": "Kozlenko Vitaliy",
+      "role": "Developer"
+    }
+  ]
+}
