@@ -162,6 +162,7 @@ class Run
         $arguments = [
             '--project ' . $this->projectName,
             '--file ' . $fileOnServer,
+            '--ref ' . $this->ref,
         ];
         $cmd = '/code.update.sh ' . implode(' ', $arguments);
         $prepareExec = new Prepare($this->service, $cmd);
