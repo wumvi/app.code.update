@@ -149,6 +149,7 @@ class Run
         } catch (\Exception $ex) {
             $msg = @json_decode($ex->getMessage());
             $msg = $msg ? $msg->message : $ex->getMessage();
+            $msg = $msg ? $msg : 'Container with name "' . $this->service . '" not found';
             throw new CodeUpdateException($msg, CodeUpdateException::CONTAINER_NOT_FOUND);
         }
 
