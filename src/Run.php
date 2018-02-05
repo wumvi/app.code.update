@@ -161,9 +161,9 @@ class Run
 
         $dockerExec = new Exec();
         $arguments = [
-            '--project ' . $this->projectName,
-            '--file ' . $fileOnServer,
-            '--ref ' . $this->ref,
+            '-p ' . $this->projectName,
+            '-f ' . $fileOnServer,
+            '-r ' . $this->ref,
         ];
         $cmd = '/code.update.sh ' . implode(' ', $arguments);
         $prepareExec = new Prepare($this->service, $cmd);
