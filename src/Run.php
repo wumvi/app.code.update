@@ -179,7 +179,10 @@ class Run
         }
 
         if ($exitCode !== 0) {
-            throw new CodeUpdateException('Error to execute ' . $cmd, CodeUpdateException::ERROR_TO_EXECUTE);
+            throw new CodeUpdateException(
+                'Error to execute ' . $cmd . '. Exit code ' . $exitCode,
+                CodeUpdateException::ERROR_TO_EXECUTE
+            );
         }
     }
 
