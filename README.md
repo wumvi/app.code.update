@@ -11,7 +11,7 @@ builds/{project-name}/{ref}.zip
 
 Далее запускает на контейнере {container} скрипт  
 ```
-/code.update.sh --project {project-name} --file {local-zip-name}  --ref {ref}
+/code.update.sh -p {project-name} -f {local-zip-name}  -r {ref}
 ```
 
 #### Запуск
