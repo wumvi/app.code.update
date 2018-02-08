@@ -9,8 +9,8 @@ try {
     $code = new Run();
     $code->run();
 } catch (\Exception $ex) {
-    echo json_encode(['msg' => $ex->getMessage(), 'status' => $ex->getCode(),]);
+    echo json_encode(['msg' => $ex->getMessage(), 'status' => $ex->getCode(),]), PHP_EOL;
     exit($ex->getCode());
 }
 
-echo json_encode(['msg' => 'ok', 'status' => 0,]);
+echo json_encode(['msg' => 'ok', 'status' => 0,]), PHP_EOL;

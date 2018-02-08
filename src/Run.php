@@ -3,15 +3,15 @@ declare(strict_types=1);
 
 namespace CodeUpdate;
 
-use \YandexDiskApi\Arguments\Disk\GetInfo;
-use \YandexDiskApi\Disk;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
-use \DockerApi\Exec;
-use \DockerApi\Containers;
-use \DockerApi\Arguments\Exec\Prepare;
+use DockerApi\Arguments\Exec\Prepare;
+use DockerApi\Containers;
+use DockerApi\Exec;
 use GetOpt\GetOpt;
 use GetOpt\Option;
+use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
+use Symfony\Component\Filesystem\Filesystem;
+use YandexDiskApi\Arguments\Disk\GetInfo;
+use YandexDiskApi\Disk;
 
 class Run
 {
@@ -27,9 +27,9 @@ class Run
     private $token;
 
     /**
-     * @var string
+     * @var string[]
      */
-    private $service;
+    private $containersName;
 
     /**
      * @var string
@@ -41,11 +41,19 @@ class Run
      */
     private $projectName;
 
+    /**
+     * Run constructor.
+     *
+     * @throws CodeUpdateException
+     */
     public function __construct()
     {
         $this->initArguments();
     }
 
+    /**
+     * @throws CodeUpdateException
+     */
     private function initArguments()
     {
         $getOpt = new GetOpt();
@@ -69,8 +77,8 @@ class Run
         $option->setDescription('Project name');
         $getOpt->addOption($option);
 
-        $option = new Option('s', 'service', GetOpt::REQUIRED_ARGUMENT);
-        $option->setDescription('Name or ID of docker container');
+        $option = new Option('s', 'service', GetOpt::MULTIPLE_ARGUMENT);
+        $option->setDescription('Container name or id');
         $getOpt->addOption($option);
 
         try {
@@ -86,16 +94,12 @@ class Run
         }
 
         $this->token = $getOpt->getOption('token');
-        $this->service = (string)$getOpt->getOption('service');
+        $this->containersName = $getOpt->getOption('service');
         $this->ref = $getOpt->getOption('ref');
         $this->projectName = $getOpt->getOption('project');
 
         if (empty($this->token)) {
-            throw new CodeUpdateException('Token is empty', CodeUpdateException::PARSE_ARGUMENTS);
-        }
-
-        if (empty($this->service)) {
-            throw new CodeUpdateException('Service is empty', CodeUpdateException::PARSE_ARGUMENTS);
+            throw new CodeUpdateException('Yandex token is empty', CodeUpdateException::PARSE_ARGUMENTS);
         }
 
         if (empty($this->ref)) {
@@ -107,6 +111,11 @@ class Run
         }
     }
 
+    /**
+     * @param string $fileOnServer
+     *
+     * @throws CodeUpdateException
+     */
     private function download(string $fileOnServer): void
     {
         $fileOnYandexDisk = 'builds/' . $this->projectName . '/' . $this->ref . '.zip';
@@ -140,17 +149,69 @@ class Run
         $this->clearFile();
     }
 
-    public function run(): void
+    /**
+     * @throws CodeUpdateException
+     */
+    function checkContainersExists()
     {
         $dockerContainers = new Containers();
 
-        try {
-            $dockerContainers->inspect($this->service);
-        } catch (\Exception $ex) {
-            $msg = @json_decode($ex->getMessage());
-            $msg = $msg ? $msg->message : $ex->getMessage();
-            $msg = $msg ? $msg : 'Container with name "' . $this->service . '" not found';
-            throw new CodeUpdateException($msg, CodeUpdateException::CONTAINER_NOT_FOUND);
+        foreach ($this->containersName as $containerName) {
+            try {
+                $dockerContainers->inspect($containerName);
+            } catch (\Exception $ex) {
+                $msg = @json_decode($ex->getMessage());
+                $msg = $msg ? $msg->message : $ex->getMessage();
+                $msg = $msg ? $msg : 'Container "' . $containerName . '" not found';
+                throw new CodeUpdateException($msg, CodeUpdateException::CONTAINER_NOT_FOUND);
+            }
+        }
+    }
+
+    /**
+     * @param string $fileOnServer
+     *
+     * @throws CodeUpdateException
+     */
+    function execCmdInContainer(string $fileOnServer)
+    {
+        $dockerExec = new Exec();
+        $arguments = [
+            '-p ' . $this->projectName,
+            '-f ' . $fileOnServer,
+            '-r ' . $this->ref,
+        ];
+        $cmd = '/code.update.sh ' . implode(' ', $arguments);
+
+        foreach ($this->containersName as $containerName) {
+            $prepareExec = new Prepare($containerName, $cmd);
+
+            try {
+                $startId = $dockerExec->prepare($prepareExec);
+                $dockerExec->start($startId);
+                $exitCode = $dockerExec->inspect($startId)->getExitCode();
+            } catch (\Exception $ex) {
+                $msg = @json_decode($ex->getMessage());
+                $msg = $msg ? $msg->message : $ex->getMessage();
+                throw new CodeUpdateException($msg, CodeUpdateException::ERROR_TO_EXECUTE);
+            }
+
+            if ($exitCode !== 0) {
+                throw new CodeUpdateException(
+                    'Error to execute ' . $cmd . '. Exit code ' . $exitCode,
+                    CodeUpdateException::ERROR_TO_EXECUTE
+                );
+            }
+        }
+    }
+
+    /**
+     * @throws CodeUpdateException
+     */
+    public function run(): void
+    {
+        if ($this->containersName) {
+            $this->checkContainersExists($this->containersName);
         }
 
         $fileOnServer = $this->getFileOut();
@@ -159,30 +220,8 @@ class Run
             $this->download($fileOnServer);
         }
 
-        $dockerExec = new Exec();
-        $arguments = [
-            '-p ' . $this->projectName,
-            '-f ' . $fileOnServer,
-            '-r ' . $this->ref,
-        ];
-        $cmd = '/code.update.sh ' . implode(' ', $arguments);
-        $prepareExec = new Prepare($this->service, $cmd);
-
-        try {
-            $startId = $dockerExec->prepare($prepareExec);
-            $dockerExec->start($startId);
-            $exitCode = $dockerExec->inspect($startId)->getExitCode();
-        } catch (\Exception $ex) {
-            $msg = @json_decode($ex->getMessage());
-            $msg = $msg ? $msg->message : $ex->getMessage();
-            throw new CodeUpdateException($msg, CodeUpdateException::ERROR_TO_EXECUTE);
-        }
-
-        if ($exitCode !== 0) {
-            throw new CodeUpdateException(
-                'Error to execute ' . $cmd . '. Exit code ' . $exitCode,
-                CodeUpdateException::ERROR_TO_EXECUTE
-            );
+        if ($this->containersName) {
+            $this->execCmdInContainer($fileOnServer);
         }
     }
 
@@ -198,7 +237,7 @@ class Run
         array_multisort(array_map('filemtime', $files), SORT_DESC, $files);
 
         $files = array_slice($files, self::MAX_FILE_IN_FOLDER);
-        foreach($files as $file) {
+        foreach ($files as $file) {
             unlink($file);
         }
     }
