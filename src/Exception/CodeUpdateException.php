@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace CodeUpdate;
+namespace CodeUpdate\Exception;
 
 class CodeUpdateException extends \Exception
 {
